@@ -1,0 +1,107 @@
+# =============================================================================
+# Static Site QA Deployment
+# =============================================================================
+# Deploys static HTML files to the QA server's shared static site host.
+# No Docker build, no .env files — just rsync and a Traefik route.
+#
+# Required GitHub Configuration:
+#   Variables (Settings → Variables → Actions):
+#     - QA_SERVER_IP: Server IP address
+#
+#   Secrets (Settings → Secrets → Actions):
+#     - QA_SSH_PRIVATE_KEY: SSH private key for root@server
+#
+# Server Prerequisites:
+#   - Shared Traefik with file provider watching /opt/traefik/dynamic/
+#   - static-sites nginx container running (serves /opt/sites/)
+#   - Wildcard DNS: *.qa.superposition.systems → server IP
+#
+# How it works:
+#   1. rsync site files to /opt/sites/{repo-name}/
+#   2. Write Traefik route config to /opt/traefik/dynamic/{repo-name}.yml
+#   3. Traefik auto-discovers the route and provisions a TLS cert
+#   4. Site is live at https://{repo-name}.qa.superposition.systems
+#
+# =============================================================================
+
+name: Deploy to QA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-qa-${{ github.event.repository.name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy static site
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    if: vars.QA_SERVER_IP != ''
+
+    env:
+      SITE_NAME: ${{ github.event.repository.name }}
+      DOMAIN: qa.superposition.systems
+      SERVER_IP: ${{ vars.QA_SERVER_IP }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.QA_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
+
+      - name: Deploy site files
+        run: |
+          SITE_DIR="/opt/sites/${SITE_NAME}"
+
+          ssh root@"${SERVER_IP}" "mkdir -p ${SITE_DIR}"
+
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'README.md' \
+            --exclude 'LICENSE' \
+            --exclude 'scripts' \
+            --exclude 'server-setup' \
+            ./ root@"${SERVER_IP}":"${SITE_DIR}"/
+
+          echo "Files deployed to ${SITE_DIR}"
+
+      - name: Register Traefik route
+        run: |
+          ssh root@"${SERVER_IP}" \
+            SITE_NAME="${SITE_NAME}" \
+            DOMAIN="${DOMAIN}" \
+            bash -s << 'ROUTE_SCRIPT'
+            set -e
+            ROUTE_DIR="/opt/traefik/dynamic"
+            mkdir -p "${ROUTE_DIR}"
+
+            cat > "${ROUTE_DIR}/${SITE_NAME}.yml" << ROUTE_EOF
+          http:
+            routers:
+              ${SITE_NAME}:
+                rule: "Host(\`${SITE_NAME}.${DOMAIN}\`)"
+                entrypoints:
+                  - websecure
+                tls:
+                  certResolver: letsencrypt
+                service: static-sites@docker
+                middlewares:
+                  - rate-limit@docker
+                  - static-sites-security@docker
+          ROUTE_EOF
+
+            echo "Route registered: https://${SITE_NAME}.${DOMAIN}"
+          ROUTE_SCRIPT
