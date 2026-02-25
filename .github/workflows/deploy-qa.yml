@@ -74,6 +74,8 @@ jobs:
             --exclude 'LICENSE' \
             --exclude 'scripts' \
             --exclude 'server-setup' \
+            --exclude 'NOTES.md' \
+            --exclude '.gitignore' \
             ./ root@"${SERVER_IP}":"${SITE_DIR}"/
 
           echo "Files deployed to ${SITE_DIR}"

@@ -26,12 +26,7 @@ The `server-setup/` directory contains the one-time infrastructure setup that wa
 - Created `/opt/apps/static-sites/` with nginx container and config
 - Created `/opt/sites/` directory for site files
 
-**WARNING: cloud-init.yaml drift.** These changes were applied directly to the running server. The Hetzner repo's `cloud-init.yaml` does not yet include:
-- The Traefik file provider flags and volume
-- The static-sites container provisioning
-- The `/opt/sites/` directory creation
-
-If the server is reprovisioned from Terraform, this infrastructure will need to be re-applied. Update `cloud-init.yaml` to make it permanent.
+**cloud-init.yaml is now in sync.** The Hetzner repo's `cloud-init.yaml` includes all static site infrastructure: Traefik file provider flags/volume, the static-sites container (docker-compose + nginx.conf), and the `/opt/sites/` and `/opt/traefik/dynamic/` directories. A reprovision from Terraform will restore this automatically.
 
 ## Deploying a New Site
 
@@ -83,7 +78,6 @@ All static sites are behind `qa-gate` (cookie-based forward-auth). Users are red
 
 ## Future Improvements
 
-- **Update cloud-init.yaml** — make server-side setup survive reprovisioning
 - **Teardown workflow** — GitHub Action to remove a site (delete files + route config)
 - **Slack automation** — `@claude` in Slack creates repo from template, uploads Figma zip, triggers deploy. Needs `gh` CLI in Claude Code's environment via `.claude/setup.sh`
 - **Wildcard TLS cert** — eliminates per-site cert provisioning, requires DNS-01 challenge
