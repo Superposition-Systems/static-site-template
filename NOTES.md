@@ -64,9 +64,9 @@ The nginx health check must use `127.0.0.1` not `localhost`. Alpine's BusyBox wg
 
 The file provider route configs reference `static-sites@docker` — the `@docker` suffix tells Traefik to resolve the service from the Docker provider. This is how file-defined routers point to Docker-defined services.
 
-### Let's Encrypt rate limits
+### TLS certificates
 
-Each site gets its own TLS cert via TLS-ALPN-01. Currently ~23 certs issued. Limit is 50 per registered domain per week. If deploying many sites rapidly, consider switching to a wildcard cert via DNS-01 challenge (would require DNS API access — Squarespace doesn't have great support, consider migrating DNS to Hetzner or Cloudflare).
+A wildcard cert (`*.qa.superposition.systems`) covers all static sites via DNS-01 challenge with Hetzner DNS. Per-site route configs use `tls: {}` — no `certResolver` needed. DNS was migrated from Squarespace to Hetzner DNS on 2026-02-26.
 
 ### HEREDOC indentation in the workflow
 
@@ -80,5 +80,4 @@ All static sites are behind `qa-gate` (cookie-based forward-auth). Users are red
 
 - **Teardown workflow** — GitHub Action to remove a site (delete files + route config)
 - **Slack automation** — `@claude` in Slack creates repo from template, uploads Figma zip, triggers deploy. Needs `gh` CLI in Claude Code's environment via `.claude/setup.sh`
-- **Wildcard TLS cert** — eliminates per-site cert provisioning, requires DNS-01 challenge
 - **Custom domains** — support `CNAME`ing a client's domain to the static site

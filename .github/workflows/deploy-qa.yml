@@ -97,8 +97,7 @@ jobs:
                 rule: "Host(\`${SITE_NAME}.${DOMAIN}\`)"
                 entrypoints:
                   - websecure
-                tls:
-                  certResolver: letsencrypt
+                tls: {}
                 service: static-sites@docker
                 middlewares:
                   - rate-limit@docker
